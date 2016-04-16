@@ -18,7 +18,7 @@ from sklearn.cross_validation import LabelShuffleSplit
 
 from utilities import write_submission, calc_geom, calc_geom_arr, mkdirp
 
-TESTING = True
+TESTING = False
 
 DATASET_PATH = os.environ.get('DATASET_PATH', 'dataset/data_20.pkl' if not TESTING else 'dataset/data_20_subset.pkl')
 
@@ -92,24 +92,26 @@ for train_index, valid_index in LabelShuffleSplit(driver_indices, n_iter=MAX_FOL
 
     # restore existing checkpoint, if it exists
     checkpoint_path = os.path.join(CHECKPOINT_PATH, 'model_{}.h5'.format(num_folds))
+
+    summary_path = os.path.join(SUMMARY_PATH, 'model_{}'.format(num_folds))
+    mkdirp(summary_path)
+
+    callbacks = [
+        EarlyStopping(monitor='val_loss', patience=2, verbose=0, mode='auto'),
+        ModelCheckpoint(checkpoint_path, monitor='val_loss', verbose=0, save_best_only=True, mode='auto'),
+#        TensorBoard(log_dir=summary_path, histogram_freq=0)
+    ]
+
     if os.path.exists(checkpoint_path):
         print('Restoring fold from checkpoint.')
         model.load_weights(checkpoint_path)
-    else:
-        summary_path = os.path.join(SUMMARY_PATH, 'model_{}'.format(num_folds))
-        mkdirp(summary_path)
 
-        callbacks = [
-            EarlyStopping(monitor='val_loss', patience=2, verbose=0, mode='auto'),
-            ModelCheckpoint(checkpoint_path, monitor='val_loss', verbose=0, save_best_only=True, mode='auto'),
-            TensorBoard(log_dir=summary_path, histogram_freq=0)
-        ]
-        model.fit(X_train, y_train, \
-                batch_size=BATCH_SIZE, nb_epoch=NB_EPOCHS, \
-                shuffle=True, \
-                verbose=1, \
-                validation_data=(X_valid, y_valid), \
-                callbacks=callbacks)
+    model.fit(X_train[:1,:], y_train[:1,:], \
+            batch_size=BATCH_SIZE, nb_epoch=NB_EPOCHS, \
+            shuffle=True, \
+            verbose=1, \
+            validation_data=(X_valid, y_valid), \
+            callbacks=callbacks)
 
     predictions_valid = model.predict(X_valid, batch_size=100, verbose=1)
     score_valid = log_loss(y_valid, predictions_valid)
